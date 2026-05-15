@@ -502,7 +502,7 @@ function updateUI() {
   if (txtData) {
     items.push(`<span class="tag ok">✓ 總分：${fmt(txtData.totalScore)}</span>`);
     items.push(`<span class="tag ok">✓ 六項分數已解析</span>`);
-    items.push(`<span class="tag ok">✓ 滑音 ${txtData.portamentoCount} 個 / 抖音 ${txtData.vibratoCount} 個</span>`);
+    items.push(`<span class="tag ok">✓ 滑音 ${txtData.portamentoCount} 個 / 抖音 ${txtData.vibratoCount} 個 / 轉音 ${txtData.riffs} 個</span>`);
   } else {
     items.push(`<span class="tag missing">等待上傳 TXT</span>`);
   }
