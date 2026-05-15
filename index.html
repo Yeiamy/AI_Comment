@@ -424,20 +424,19 @@ function parseTXT(text) {
     }
   }
 
-  const headerMatch = text.match(/LoudnessVar\s+Vibrato\s+Up Portamento\s+Down Portamento\s+Riffs and Runs/);
   let vibratoCount = 0, upPort = 0, downPort = 0, riffs = 0;
-  if (headerMatch) {
-    const dataLine = text.split('\n').find((l, i, arr) => {
-      return l.includes('[') && arr[Math.max(0,i-2)].includes('LoudnessVar');
-    });
-    if (dataLine) {
-      const nums = dataLine.match(/\[?([\d.]+)\]?/g);
-      if (nums && nums.length >= 5) {
-        vibratoCount = parseInt(nums[1].replace(/[\[\]]/g,''));
-        upPort = parseInt(nums[2].replace(/[\[\]]/g,''));
-        downPort = parseInt(nums[3].replace(/[\[\]]/g,''));
-        riffs = parseInt(nums[4].replace(/[\[\]]/g,''));
+  const allLines = text.split('\n');
+  for (let i = 0; i < allLines.length; i++) {
+    if (allLines[i].includes('LoudnessVar') && allLines[i].includes('Vibrato')) {
+      const dataLine = allLines[i + 1] || '';
+      const nums = [...dataLine.matchAll(/\[(\d+(?:\.\d+)?)\]/g)].map(m => parseFloat(m[1]));
+      if (nums.length >= 5) {
+        vibratoCount = parseInt(nums[1]);
+        upPort = parseInt(nums[2]);
+        downPort = parseInt(nums[3]);
+        riffs = parseInt(nums[4]);
       }
+      break;
     }
   }
 
