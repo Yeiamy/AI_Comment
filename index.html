@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 演唱評分 Prompt 產生器</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans TC', 'PingFang TC', sans serif;
+    background: #f5f4f0;
+    color: #1a1a1a;
+    min-height: 100vh;
+    padding: 2rem 1rem;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: #1a1a1a;
+    margin-bottom: 0.25rem;
+  }
+
+  .subtitle {
+    font-size: 0.875rem;
+    color: #666;
+    margin-bottom: 2rem;
+  }
+
+  .container {
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  @media (max-width: 600px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: #fff;
+    border: 1px solid #e0ddd6;
+    border-radius: 12px;
+    padding: 1.25rem;
+  }
+
+  .card-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888;
+    margin-bottom: 1rem;
+  }
+
+  .upload-zone {
+    border: 1.5px dashed #ccc;
+    border-radius: 8px;
+    padding: 1.5rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    position: relative;
+  }
+
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: #5a6ad4;
+    background: #f0f1fb;
+  }
+
+  .upload-zone.success {
+    border-color: #3a9e72;
+    background: #f0faf5;
+  }
+
+  .upload-zone.error {
+    border-color: #d84040;
+    background: #fdf0f0;
+  }
+
+  .upload-zone input[type=file] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .upload-icon {
+    font-size: 1.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .upload-label {
+    font-size: 0.875rem;
+    color: #555;
+    line-height: 1.5;
+  }
+
+  .upload-status {
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+    font-weight: 500;
+  }
+
+  .upload-zone.success .upload-status { color: #2a7a54; }
+  .upload-zone.error .upload-status { color: #b03030; }
+
+  .field-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+
+  label {
+    font-size: 0.875rem;
+    color: #444;
+    white-space: nowrap;
+  }
+
+  input[type=number], input[type=text] {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.9rem;
+    width: 90px;
+    outline: none;
+    transition: border-color 0.15s;
+    background: #fafaf8;
+  }
+
+  input[type=number]:focus, input[type=text]:focus {
+    border-color: #5a6ad4;
+  }
+
+  .key-unit {
+    font-size: 0.875rem;
+    color: #888;
+  }
+
+  .preview-card {
+    background: #fff;
+    border: 1px solid #e0ddd6;
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+
+  .preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .parsed-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .tag {
+    font-size: 0.78rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    background: #eeedf8;
+    color: #3a3fa0;
+    font-weight: 500;
+  }
+
+  .tag.missing {
+    background: #fdecea;
+    color: #a03030;
+  }
+
+  .tag.ok {
+    background: #e8f7f0;
+    color: #1a6640;
+  }
+
+  .prompt-box {
+    background: #fafaf8;
+    border: 1px solid #e8e6df;
+    border-radius: 8px;
+    padding: 1rem;
+    font-size: 0.82rem;
+    line-height: 1.75;
+    color: #333;
+    white-space: pre-wrap;
+    max-height: 380px;
+    overflow-y: auto;
+    font-family: 'Noto Sans TC', monospace;
+  }
+
+  .highlight { background: #fff3b0; border-radius: 3px; padding: 0 2px; }
+  .missing-val { background: #fdd; color: #a03030; border-radius: 3px; padding: 0 2px; }
+
+  .btn-row {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+  }
+
+  button {
+    padding: 0.55rem 1.25rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1.5px solid;
+  }
+
+  .btn-primary {
+    background: #3a3fa0;
+    color: #fff;
+    border-color: #3a3fa0;
+  }
+
+  .btn-primary:hover { background: #2d3180; border-color: #2d3180; }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-primary.copied { background: #2a7a54; border-color: #2a7a54; }
+
+  .btn-secondary {
+    background: transparent;
+    color: #555;
+    border-color: #ccc;
+  }
+
+  .btn-secondary:hover { background: #f5f4f0; border-color: #aaa; }
+
+  .empty-state {
+    text-align: center;
+    color: #aaa;
+    font-size: 0.875rem;
+    padding: 2rem 0;
+  }
+
+  .section-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.5rem;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🎵 AI 演唱評分 Prompt 產生器</h1>
+  <p class="subtitle">上傳 LRC 與 VocalFeatureTrack.txt，自動組合 prompt，一鍵複製給 AI</p>
+
+  <div class="grid">
+    <!-- LRC Upload -->
+    <div class="card">
+      <div class="card-title">歌曲資訊來源</div>
+      <div class="upload-zone" id="lrc-zone">
+        <input type="file" id="lrc-input" accept=".lrc">
+        <div class="upload-icon">🎵</div>
+        <div class="upload-label">上傳 <strong>.lrc</strong> 檔案<br>抓取曲名、最高音、最低音</div>
+        <div class="upload-status" id="lrc-status"></div>
+      </div>
+    </div>
+
+    <!-- TXT Upload -->
+    <div class="card">
+      <div class="card-title">演唱分數來源</div>
+      <div class="upload-zone" id="txt-zone">
+        <input type="file" id="txt-input" accept=".txt">
+        <div class="upload-icon">📊</div>
+        <div class="upload-label">上傳 <strong>VocalFeatureTrack.txt</strong><br>抓取所有評分項目</div>
+        <div class="upload-status" id="txt-status"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manual input -->
+  <div class="card" style="margin-bottom:1rem;">
+    <div class="card-title">手動輸入</div>
+    <div class="field-row">
+      <label>升降調</label>
+      <input type="number" id="key-input" value="0" step="1" min="-12" max="12">
+      <span class="key-unit">key（原調填 0）</span>
+    </div>
+  </div>
+
+  <!-- Parsed preview -->
+  <div class="preview-card">
+    <div class="preview-header">
+      <div class="card-title" style="margin:0">解析結果</div>
+    </div>
+    <div class="parsed-tags" id="parsed-tags">
+      <span class="tag missing">等待上傳 LRC</span>
+      <span class="tag missing">等待上傳 TXT</span>
+    </div>
+
+    <div class="section-label">產出的 Prompt</div>
+    <div class="prompt-box" id="prompt-box">
+      <div class="empty-state">上傳檔案後，prompt 會自動顯示在這裡</div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-primary" id="copy-btn" onclick="copyPrompt()">📋 複製 Prompt</button>
+      <button class="btn-secondary" onclick="resetAll()">↺ 重設</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const PROMPT_TEMPLATE = `請依照以下指示，根據我提供兩大資訊分兩大項分析並給予反饋: 1.歌曲資訊 2. 演唱分數資訊。
+
+歌曲資訊包含﹔曲名、最高音及最低音，請根據這些資訊提供分析，要提到曲名，且不要把這項分析放在綜合評語中。
+
+演唱分數資訊包含﹔六個評分項目及升降調，若有60分以下的項目請給予鼓勵。
+
+以上兩大項分析後，請提供綜合評語。
+
+只需要提供簡潔建議，不要多餘描述，總長度控制在1000字。
+
+請根據六個評分項目對唱歌進行詳細的反饋，這六個項目包括：音準、滑音、長音、抖音、節奏和張力。音準是最重要的項目，佔比達 90%。
+
+此外，唱歌技巧則劃分為三種：滑音、抖音和轉音。每個項目都是百分制，依據使用者的表現給出具建設性和具體的建議或讚美。滑音包含上滑音或下滑音。
+
+請加入升降調的分析內容。
+
+提供支持性和清晰的評論，並誠實且具體地進行批評，始終以幫助使用者改善表現為目標。
+
+針對低於60分的項目，請使用鼓勵性語言，幫助使用者找到改進方向而不打擊信心。
+
+除了逐項的評價外，根據所有評分項目提供綜合評語，總結整體表現，給予進一步的提升建議。
+
+所有用詞將避免使用中國大陸常用詞彙，優先使用台灣常見詞彙，例如使用「軟體」而非「軟件」。
+
+請對我整體的音準和其他細項表現進行評分
+
+[歌曲資訊]
+
+曲名：{SONG_NAME}
+
+最高音：{HIGH_NOTE}
+
+最低音：{LOW_NOTE}
+
+[演唱分數資訊]
+
+總分：{TOTAL_SCORE}
+
+音準：{PITCH}
+
+張力：{VOLUME_VAR}
+
+節奏：{TEMPO}
+
+滑音：{PORTAMENTO}，{PORTAMENTO_COUNT}個
+
+抖音：{VIBRATO}，{VIBRATO_COUNT}個
+
+長音：{LONG_NOTES}
+
+轉音：{RIFFS}個
+
+升降調：{KEY} key`;
+
+let lrcData = null;
+let txtData = null;
+
+function noteFromMidi(midi) {
+  const names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const octave = Math.floor(midi / 12) - 1;
+  return names[midi % 12] + octave;
+}
+
+function parseLRC(text) {
+  const NOTE_ORDER = {'C':0,'C#':1,'D':2,'D#':3,'E':4,'F':5,'F#':6,'G':7,'G#':8,'A':9,'A#':10,'B':11};
+
+  function noteStrToMidi(str) {
+    const m = str.match(/^([A-G]#?)(\d)$/);
+    if (!m) return null;
+    const name = m[1], octave = parseInt(m[2]);
+    if (NOTE_ORDER[name] === undefined) return null;
+    return NOTE_ORDER[name] + (octave + 1) * 12;
+  }
+
+  function midiToName(midi) {
+    const names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+    return names[midi % 12] + (Math.floor(midi / 12) - 1);
+  }
+
+  const nameMatch = text.match(/歌曲[:：](.*)/);
+  const songName = nameMatch ? nameMatch[1].trim() : '（未找到曲名）';
+
+  const noteMatches = [...text.matchAll(/\(([A-G]#?\d)\)/g)];
+  const midis = noteMatches.map(m => noteStrToMidi(m[1])).filter(v => v !== null);
+
+  return {
+    songName,
+    highNote: midis.length ? midiToName(Math.max(...midis)) : '（無法解析）',
+    lowNote: midis.length ? midiToName(Math.min(...midis)) : '（無法解析）',
+    hasNotes: midis.length > 0
+  };
+}
+
+function parseTXT(text) {
+  const radar = {};
+  const radarSection = text.match(/Radar Chart[\s\S]*/);
+  if (radarSection) {
+    const lines = radarSection[0].split('\n');
+    for (const line of lines) {
+      const m = line.match(/^(\w[\w\s]*?)\s+([\d.]+)\s*$/);
+      if (m) radar[m[1].trim()] = parseFloat(m[2]);
+    }
+  }
+
+  const headerMatch = text.match(/LoudnessVar\s+Vibrato\s+Up Portamento\s+Down Portamento\s+Riffs and Runs/);
+  let vibratoCount = 0, upPort = 0, downPort = 0, riffs = 0;
+  if (headerMatch) {
+    const dataLine = text.split('\n').find((l, i, arr) => {
+      return l.includes('[') && arr[Math.max(0,i-2)].includes('LoudnessVar');
+    });
+    if (dataLine) {
+      const nums = dataLine.match(/\[?([\d.]+)\]?/g);
+      if (nums && nums.length >= 5) {
+        vibratoCount = parseInt(nums[1].replace(/[\[\]]/g,''));
+        upPort = parseInt(nums[2].replace(/[\[\]]/g,''));
+        downPort = parseInt(nums[3].replace(/[\[\]]/g,''));
+        riffs = parseInt(nums[4].replace(/[\[\]]/g,''));
+      }
+    }
+  }
+
+  const portamentoCount = upPort + downPort;
+
+  return {
+    totalScore: radar['Total Score'] ?? null,
+    pitch: radar['Pitch'] ?? null,
+    volumeVar: radar['VolumeVar'] ?? null,
+    tempo: radar['Tempo'] ?? null,
+    portamento: radar['Portamento'] ?? null,
+    portamentoCount,
+    vibrato: radar['Vibrato'] ?? null,
+    vibratoCount,
+    longNotes: radar['LongNotes'] ?? null,
+    riffs,
+    octaveOffset: radar['Octave Offset'] ?? 0
+  };
+}
+
+function fmt(v) {
+  if (v === null || v === undefined) return '（無法解析）';
+  return parseFloat(v.toFixed(4)).toString();
+}
+
+function buildPrompt() {
+  const key = document.getElementById('key-input').value || '0';
+
+  if (!lrcData && !txtData) return null;
+
+  let prompt = PROMPT_TEMPLATE;
+  prompt = prompt.replace('{SONG_NAME}', lrcData?.songName ?? '（未上傳）');
+  prompt = prompt.replace('{HIGH_NOTE}', lrcData?.highNote ?? '（未上傳）');
+  prompt = prompt.replace('{LOW_NOTE}', lrcData?.lowNote ?? '（未上傳）');
+  prompt = prompt.replace('{TOTAL_SCORE}', txtData ? fmt(txtData.totalScore) : '（未上傳）');
+  prompt = prompt.replace('{PITCH}', txtData ? fmt(txtData.pitch) : '（未上傳）');
+  prompt = prompt.replace('{VOLUME_VAR}', txtData ? fmt(txtData.volumeVar) : '（未上傳）');
+  prompt = prompt.replace('{TEMPO}', txtData ? fmt(txtData.tempo) : '（未上傳）');
+  prompt = prompt.replace('{PORTAMENTO}', txtData ? fmt(txtData.portamento) : '（未上傳）');
+  prompt = prompt.replace('{PORTAMENTO_COUNT}', txtData ? txtData.portamentoCount : '？');
+  prompt = prompt.replace('{VIBRATO}', txtData ? fmt(txtData.vibrato) : '（未上傳）');
+  prompt = prompt.replace('{VIBRATO_COUNT}', txtData ? txtData.vibratoCount : '？');
+  prompt = prompt.replace('{LONG_NOTES}', txtData ? fmt(txtData.longNotes) : '（未上傳）');
+  prompt = prompt.replace('{RIFFS}', txtData ? txtData.riffs : '？');
+  prompt = prompt.replace('{KEY}', key);
+
+  return prompt;
+}
+
+function updateUI() {
+  const tags = document.getElementById('parsed-tags');
+  const box = document.getElementById('prompt-box');
+  const items = [];
+
+  if (lrcData) {
+    items.push(`<span class="tag ok">✓ 曲名：${lrcData.songName}</span>`);
+    items.push(`<span class="tag ok">✓ 最高音：${lrcData.highNote}</span>`);
+    items.push(`<span class="tag ok">✓ 最低音：${lrcData.lowNote}</span>`);
+  } else {
+    items.push(`<span class="tag missing">等待上傳 LRC</span>`);
+  }
+
+  if (txtData) {
+    items.push(`<span class="tag ok">✓ 總分：${fmt(txtData.totalScore)}</span>`);
+    items.push(`<span class="tag ok">✓ 六項分數已解析</span>`);
+    items.push(`<span class="tag ok">✓ 滑音 ${txtData.portamentoCount} 個 / 抖音 ${txtData.vibratoCount} 個</span>`);
+  } else {
+    items.push(`<span class="tag missing">等待上傳 TXT</span>`);
+  }
+
+  tags.innerHTML = items.join('');
+
+  const prompt = buildPrompt();
+  if (prompt) {
+    box.textContent = prompt;
+  } else {
+    box.innerHTML = '<div class="empty-state">上傳檔案後，prompt 會自動顯示在這裡</div>';
+  }
+}
+
+function setupUpload(inputId, zoneId, statusId, type) {
+  const input = document.getElementById(inputId);
+  const zone = document.getElementById(zoneId);
+  const status = document.getElementById(statusId);
+
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file, zone, status, type);
+  });
+
+  input.addEventListener('change', () => {
+    if (input.files[0]) handleFile(input.files[0], zone, status, type);
+  });
+}
+
+function handleFile(file, zone, status, type) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+    try {
+      if (type === 'lrc') {
+        lrcData = parseLRC(text);
+        zone.classList.remove('error');
+        zone.classList.add('success');
+        status.textContent = `✓ ${file.name} 解析成功`;
+      } else {
+        txtData = parseTXT(text);
+        zone.classList.remove('error');
+        zone.classList.add('success');
+        status.textContent = `✓ ${file.name} 解析成功`;
+      }
+      updateUI();
+    } catch(err) {
+      zone.classList.add('error');
+      status.textContent = `✗ 解析失敗：${err.message}`;
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function copyPrompt() {
+  const prompt = buildPrompt();
+  if (!prompt) { alert('請先上傳檔案'); return; }
+  navigator.clipboard.writeText(prompt).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = '✓ 已複製！';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = '📋 複製 Prompt';
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
+
+function resetAll() {
+  lrcData = null;
+  txtData = null;
+  document.getElementById('key-input').value = '0';
+  ['lrc-zone','txt-zone'].forEach(id => {
+    document.getElementById(id).classList.remove('success','error','drag-over');
+  });
+  ['lrc-status','txt-status'].forEach(id => {
+    document.getElementById(id).textContent = '';
+  });
+  ['lrc-input','txt-input'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  updateUI();
+}
+
+document.getElementById('key-input').addEventListener('input', updateUI);
+
+setupUpload('lrc-input', 'lrc-zone', 'lrc-status', 'lrc');
+setupUpload('txt-input', 'txt-zone', 'txt-status', 'txt');
+</script>
+</body>
+</html>
