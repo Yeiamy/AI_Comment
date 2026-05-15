@@ -399,7 +399,7 @@ function parseLRC(text) {
     return names[midi % 12] + (Math.floor(midi / 12) - 1);
   }
 
-  const nameMatch = text.match(/歌曲[:：](.*)/);
+  const nameMatch = text.match(/歌曲[：:](.*)/);
   const songName = nameMatch ? nameMatch[1].trim() : '（未找到曲名）';
 
   const noteMatches = [...text.matchAll(/\(([A-G]#?\d)\)/g)];
