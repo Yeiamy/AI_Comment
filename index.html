@@ -364,13 +364,13 @@ const PROMPT_TEMPLATE = `請依照以下指示，根據我提供兩大資訊分�
 
 節奏：{TEMPO}
 
-滑音：{PORTAMENTO}，{PORTAMENTO_COUNT}個
+滑音：{PORTAMENTO}，{PORTAMENTO_LINE}
 
-抖音：{VIBRATO}，{VIBRATO_COUNT}個
+抖音：{VIBRATO}，{VIBRATO_LINE}
 
 長音：{LONG_NOTES}
 
-轉音：{RIFFS}個
+轉音：{RIFFS_LINE}
 
 升降調：{KEY} key`;
 
@@ -402,14 +402,37 @@ function parseLRC(text) {
   const nameMatch = text.match(/歌曲[：:](.*)/);
   const songName = nameMatch ? nameMatch[1].trim() : '（未找到曲名）';
 
-  const noteMatches = [...text.matchAll(/\(([A-G]#?\d)\)/g)];
-  const midis = noteMatches.map(m => noteStrToMidi(m[1])).filter(v => v !== null);
+  // 偵測 v1.4：第一行是 JSON
+  const firstLine = text.split('\n')[0].trim();
+  let lrcVersion = '1.0';
+  let header = null;
+  if (firstLine.startsWith('{')) {
+    try {
+      header = JSON.parse(firstLine);
+      lrcVersion = header.version || '1.4';
+    } catch(e) {}
+  }
+
+  let highNote, lowNote;
+  if (header && header.max_pitch && header.min_pitch) {
+    highNote = header.max_pitch;
+    lowNote = header.min_pitch;
+  } else {
+    const noteMatches = [...text.matchAll(/\(([A-G]#?\d)\)/g)];
+    const midis = noteMatches.map(m => noteStrToMidi(m[1])).filter(v => v !== null);
+    highNote = midis.length ? midiToName(Math.max(...midis)) : '（無法解析）';
+    lowNote = midis.length ? midiToName(Math.min(...midis)) : '（無法解析）';
+  }
 
   return {
     songName,
-    highNote: midis.length ? midiToName(Math.max(...midis)) : '（無法解析）',
-    lowNote: midis.length ? midiToName(Math.min(...midis)) : '（無法解析）',
-    hasNotes: midis.length > 0
+    highNote,
+    lowNote,
+    lrcVersion,
+    refVibrato: header ? header.vibrato_count : null,
+    refUpPort: header ? header.up_portamento_count : null,
+    refDownPort: header ? header.down_portamento_count : null,
+    refRiffs: header ? header.runs_and_riffs_count : null,
   };
 }
 
@@ -476,11 +499,27 @@ function buildPrompt() {
   prompt = prompt.replace('{VOLUME_VAR}', txtData ? fmt(txtData.volumeVar) : '（未上傳）');
   prompt = prompt.replace('{TEMPO}', txtData ? fmt(txtData.tempo) : '（未上傳）');
   prompt = prompt.replace('{PORTAMENTO}', txtData ? fmt(txtData.portamento) : '（未上傳）');
-  prompt = prompt.replace('{PORTAMENTO_COUNT}', txtData ? txtData.portamentoCount : '？');
+  const is14 = lrcData && lrcData.lrcVersion && lrcData.lrcVersion !== '1.0';
+  const portLine = txtData
+    ? (is14 && lrcData.refUpPort !== null
+      ? `演唱 ${txtData.portamentoCount} 個／歌曲參考 ${(lrcData.refUpPort + lrcData.refDownPort)} 個`
+      : `${txtData.portamentoCount}個`)
+    : '？';
+  const vibrLine = txtData
+    ? (is14 && lrcData.refVibrato !== null
+      ? `演唱 ${txtData.vibratoCount} 個／歌曲參考 ${lrcData.refVibrato} 個`
+      : `${txtData.vibratoCount}個`)
+    : '？';
+  const riffsLine = txtData
+    ? (is14 && lrcData.refRiffs !== null
+      ? `演唱 ${txtData.riffs} 個／歌曲參考 ${lrcData.refRiffs} 個`
+      : `${txtData.riffs}個`)
+    : '？';
+  prompt = prompt.replace('{PORTAMENTO_LINE}', portLine);
   prompt = prompt.replace('{VIBRATO}', txtData ? fmt(txtData.vibrato) : '（未上傳）');
-  prompt = prompt.replace('{VIBRATO_COUNT}', txtData ? txtData.vibratoCount : '？');
+  prompt = prompt.replace('{VIBRATO_LINE}', vibrLine);
   prompt = prompt.replace('{LONG_NOTES}', txtData ? fmt(txtData.longNotes) : '（未上傳）');
-  prompt = prompt.replace('{RIFFS}', txtData ? txtData.riffs : '？');
+  prompt = prompt.replace('{RIFFS_LINE}', riffsLine);
   prompt = prompt.replace('{KEY}', key);
 
   return prompt;
@@ -492,9 +531,13 @@ function updateUI() {
   const items = [];
 
   if (lrcData) {
-    items.push(`<span class="tag ok">✓ 曲名：${lrcData.songName}</span>`);
+    const verLabel = lrcData.lrcVersion !== '1.0' ? ` (v${lrcData.lrcVersion}，含歌曲參考)` : ' (v1.0)';
+    items.push(`<span class="tag ok">✓ 曲名：${lrcData.songName}${verLabel}</span>`);
     items.push(`<span class="tag ok">✓ 最高音：${lrcData.highNote}</span>`);
     items.push(`<span class="tag ok">✓ 最低音：${lrcData.lowNote}</span>`);
+    if (lrcData.lrcVersion !== '1.0' && lrcData.refVibrato !== null) {
+      items.push(`<span class="tag ok">✓ 歌曲參考 — 滑音 ${lrcData.refUpPort + lrcData.refDownPort} 個 / 抖音 ${lrcData.refVibrato} 個 / 轉音 ${lrcData.refRiffs} 個</span>`);
+    }
   } else {
     items.push(`<span class="tag missing">等待上傳 LRC</span>`);
   }
